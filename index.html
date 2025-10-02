@@ -1,0 +1,2554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QQ红包尾数识别与手气预测 - 综合增强版</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+    <style>
+        :root {
+            --primary: #e54d42;
+            --secondary: #ff8c7f;
+            --accent: #ffcc00;
+            --light: #f9f9f9;
+            --dark: #333;
+            --muted: #888;
+            --success: #4caf50;
+            --border: #e0e0e0;
+            --blue: #3498db;
+            --purple: #9b59b6;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: var(--dark);
+            line-height: 1.6;
+            padding: 0;
+            margin: 0;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 15px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+        
+        .subtitle {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .card-title {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+        }
+        
+        .card-title i {
+            margin-right: 10px;
+        }
+        
+        .btn {
+            display: inline-block;
+            background: var(--primary);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        
+        .btn:hover {
+            background: var(--secondary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .btn-secondary {
+            background: var(--accent);
+            color: var(--dark);
+        }
+        
+        .btn-secondary:hover {
+            background: #ffd633;
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+        }
+        
+        .btn-outline:hover {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-small {
+            padding: 6px 10px;
+            font-size: 0.8rem;
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+        }
+        
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .upload-area:hover {
+            border-color: var(--primary);
+            background: rgba(229, 77, 66, 0.03);
+        }
+        
+        .upload-icon {
+            font-size: 3rem;
+            color: var(--muted);
+            margin-bottom: 15px;
+        }
+        
+        .preview-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        #previewCanvas {
+            max-width: 100%;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        
+        .slider-container {
+            margin: 10px 0;
+        }
+        
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+        }
+        
+        .results {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .results {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .amount-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px;
+        }
+        
+        .amount-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .amount-item:last-child {
+            border-bottom: none;
+        }
+        
+        .tail-tag {
+            display: inline-block;
+            background: #fff6f6;
+            color: var(--primary);
+            padding: 3px 8px;
+            border-radius: 20px;
+            margin: 2px;
+            font-size: 0.85rem;
+            border: 1px solid #ffdede;
+        }
+        
+        .prediction-result {
+            margin-top: 15px;
+        }
+        
+        .prediction-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #f9f9f9;
+            border-radius: 6px;
+            border-left: 4px solid var(--accent);
+        }
+        
+        .highlight {
+            background-color: #fff9e6;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid var(--accent);
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        
+        .tab.active {
+            border-bottom: 2px solid var(--primary);
+            color: var(--primary);
+            font-weight: 500;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .status-bar {
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-size: 0.9rem;
+        }
+        
+        .auto-mode {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        
+        .auto-mode label {
+            margin-left: 8px;
+        }
+        
+        .progress-bar {
+            height: 6px;
+            background: #f0f0f0;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .accuracy-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            margin-left: 8px;
+        }
+        
+        .high-accuracy {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        
+        .medium-accuracy {
+            background: #fff8e1;
+            color: #f57c00;
+        }
+        
+        .low-accuracy {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+        
+        .confidence-bar {
+            height: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 5px 0;
+        }
+        
+        .confidence-level {
+            height: 100%;
+            background: var(--accent);
+        }
+        
+        .algorithm-select {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            margin: 10px 0;
+            width: 100%;
+        }
+        
+        .prediction-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .prediction-card {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            background: white;
+        }
+        
+        .prediction-card h4 {
+            margin-bottom: 10px;
+            color: var(--primary);
+        }
+        
+        .certainty-meter {
+            height: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        
+        .certainty-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4caf50, #8bc34a);
+        }
+        
+        .tail-pill {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            background: #f5f5f5;
+            margin: 3px;
+            font-size: 0.9rem;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .tail-pill.high-prob {
+            background: #e8f5e9;
+            border-color: #4caf50;
+            color: #2e7d32;
+        }
+        
+        .tail-pill.low-prob {
+            background: #ffebee;
+            border-color: #e57373;
+            color: #c62828;
+        }
+        
+        .analysis-section {
+            margin-bottom: 20px;
+        }
+        
+        .analysis-chart {
+            width: 100%;
+            height: 200px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            margin: 10px 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .chart-bar {
+            position: absolute;
+            bottom: 0;
+            background: var(--primary);
+            width: 3%;
+            margin: 0 0.5%;
+            transition: height 0.5s;
+        }
+        
+        /* 浮标按钮样式 */
+        .upload-float-btn {
+            position: fixed;
+            right: 30px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+            transition: all 0.3s;
+        }
+        
+        .upload-float-btn:hover {
+            transform: translateY(-50%) scale(1.1);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        
+        /* 模态框样式 */
+        .upload-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1200;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .upload-content {
+            background: #fff;
+            padding: 18px;
+            border-radius: 12px;
+            width: 95%;
+            max-width: 820px;
+            max-height: 90vh;
+            overflow: auto;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .tab-button {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: none;
+            background: #f0f0f0;
+            cursor: pointer;
+        }
+        
+        .tab-button.active {
+            background: var(--blue);
+            color: white;
+        }
+        
+        .manual-inputs {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .manual-input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .tail-number {
+            display: inline-block;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--blue), var(--purple));
+            color: #fff;
+            line-height: 44px;
+            text-align: center;
+            margin: 6px;
+            font-weight: bold;
+        }
+        
+        .chart-container {
+            height: 240px;
+            margin-top: 12px;
+        }
+        
+        .range-config, .advanced-config {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .range-config h4, .advanced-config h4 {
+            color: #3498db;
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+        
+        .model-status {
+            background: #f0f7ff;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 4px solid #3498db;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .model-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 10px 0;
+        }
+        
+        /* 科技感动画样式 */
+        .tech-status {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .battery-container {
+            width: 80px;
+            height: 40px;
+            background: #2c3e50;
+            border-radius: 6px;
+            padding: 4px;
+            position: relative;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        }
+        
+        .battery {
+            width: 100%;
+            height: 100%;
+            background: #34495e;
+            border-radius: 3px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .battery-level {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #e74c3c, #f39c12, #2ecc71);
+            border-radius: 2px;
+            transition: width 0.5s;
+            position: relative;
+        }
+        
+        .battery-level::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(255,255,255,0.3) 50%, 
+                transparent 100%);
+            animation: shine 2s infinite;
+        }
+        
+        .battery-cap {
+            position: absolute;
+            right: -6px;
+            top: 12px;
+            width: 6px;
+            height: 16px;
+            background: #2c3e50;
+            border-radius: 0 3px 3px 0;
+        }
+        
+        .pulse-dots {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .pulse-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #3498db;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .pulse-dot:nth-child(2) {
+            animation-delay: 0.2s;
+            background: #9b59b6;
+        }
+        
+        .pulse-dot:nth-child(3) {
+            animation-delay: 0.4s;
+            background: #2ecc71;
+        }
+        
+        .neural-network {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .neural-node {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #3498db;
+            position: relative;
+        }
+        
+        .neural-node::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: -8px;
+            right: -8px;
+            height: 2px;
+            background: #3498db;
+            transform: translateY(-50%);
+            opacity: 0.5;
+        }
+        
+        .neural-node:first-child::before {
+            display: none;
+        }
+        
+        .neural-node.active {
+            background: #e74c3c;
+            box-shadow: 0 0 10px #e74c3c;
+            animation: nodePulse 1s infinite;
+        }
+        
+        .status-text {
+            flex: 1;
+        }
+        
+        @keyframes shine {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+        }
+        
+        @keyframes nodePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+        }
+        
+        @keyframes charging {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 100%; }
+        }
+        
+        .charging .battery-level {
+            animation: charging 2s infinite;
+        }
+        
+        /* 训练完成动画 */
+        .training-complete {
+            color: #2ecc71;
+            font-weight: bold;
+            margin-left: 10px;
+            display: none;
+            animation: fadeIn 0.5s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @media (max-width: 800px) {
+            .upload-float-btn {
+                right: 16px;
+            }
+            
+            .tech-status {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 浮标按钮 -->
+    <div class="upload-float-btn" id="uploadFloatBtn" title="上传截图">📷</div>
+    
+    <header>
+        <h1>QQ红包尾数识别与手气预测 - 综合增强版</h1>
+        <div class="subtitle">上传截图识别红包尾数，预测最佳发包金额 - 结合机器学习与智能算法</div>
+    </header>
+    
+    <div class="container">
+        <div class="card">
+            <h2 class="card-title">🤖 机器学习模型状态</h2>
+            <div id="modelStatus" class="model-status">
+                <div class="tech-status">
+                    <div class="battery-container">
+                        <div class="battery">
+                            <div class="battery-level" id="batteryLevel"></div>
+                        </div>
+                        <div class="battery-cap"></div>
+                    </div>
+                    <div class="pulse-dots">
+                        <div class="pulse-dot"></div>
+                        <div class="pulse-dot"></div>
+                        <div class="pulse-dot"></div>
+                    </div>
+                    <div class="neural-network">
+                        <div class="neural-node"></div>
+                        <div class="neural-node"></div>
+                        <div class="neural-node"></div>
+                        <div class="neural-node"></div>
+                        <div class="neural-node"></div>
+                    </div>
+                    <div class="status-text" id="statusText">正在初始化机器学习模型...</div>
+                    <div class="training-complete" id="trainingComplete">训练完成！</div>
+                </div>
+            </div>
+            <div class="model-controls">
+                <button class="btn btn-small" id="trainModelBtn">训练模型</button>
+                <button class="btn btn-small btn-secondary" id="retrainModelBtn">重新训练</button>
+                <button class="btn btn-small btn-outline" id="modelInfoBtn">模型信息</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2 class="card-title">📊 当前数据与预测</h2>
+            <div id="currentData"></div>
+            <div id="predictionResult"></div>
+            
+            <div class="chart-container"><canvas id="tailDistributionChart"></canvas></div>
+        </div>
+        
+        <div class="card">
+            <h2 class="card-title">📈 尾数统计</h2>
+            <div id="tailsBox" class="muted">无数据</div>
+            
+            <div style="margin-top: 20px;">
+                <h3>手气预测设置</h3>
+                <div class="control-panel">
+                    <label><input type="checkbox" id="includeUnseen"> 如果可能包含「未出现」尾数</label>
+                    <label>预测模式：
+                        <select id="predictMode">
+                            <option value="ensemble">集成评分（推荐）</option>
+                            <option value="freq">纯频率</option>
+                            <option value="time">时间序列</option>
+                            <option value="ml">机器学习</option>
+                        </select>
+                    </label>
+                </div>
+                
+                <!-- 金额范围配置 -->
+                <div class="range-config">
+                    <h4>金额范围配置</h4>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                        <label>最小金额: <input type="number" id="minAmount" value="5" min="1" max="100" style="width: 60px;"></label>
+                        <label>最大金额: <input type="number" id="maxAmount" value="12" min="5" max="200" style="width: 60px;"></label>
+                        <label>步长: <input type="number" id="amountStep" value="1" min="1" max="10" style="width: 60px;"></label>
+                        <label>红包个数: <input type="number" id="packetCount" value="9" min="3" max="20" style="width: 60px;"></label>
+                    </div>
+                </div>
+                
+                <!-- 高级预测设置 -->
+                <div class="advanced-config">
+                    <h4>高级预测设置</h4>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                        <label>推荐尾数个数: 
+                            <select id="numTails">
+                                <option value="3">3个</option>
+                                <option value="4" selected>4个</option>
+                                <option value="5">5个</option>
+                            </select>
+                        </label>
+                        <label>模拟算法: 
+                            <select id="simAlgorithm">
+                                <option value="improvedDoubleMean">改进双倍均值法</option>
+                                <option value="segmentRandom">分段随机法</option>
+                                <option value="normalDistribution">正态分布法</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button class="btn" id="predictBtn">分析推荐金额</button>
+                    <button class="btn btn-danger" id="clearAllBtn">一键清除历史记录</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2 class="card-title">🎯 预测结果</h2>
+            <div id="predictionBox" class="muted">未计算</div>
+        </div>
+        
+        <div class="card">
+            <h2 class="card-title">🕒 历史记录</h2>
+            <div class="tabs">
+                <div class="tab active" data-tab="history">历史记录</div>
+                <div class="tab" data-tab="analysis">数据分析</div>
+                <div class="tab" data-tab="help">使用帮助</div>
+            </div>
+            
+            <div class="tab-content active" id="historyTab">
+                <div id="historyBox" class="muted">无历史数据</div>
+                <div class="controls" style="margin-top: 15px;">
+                    <button class="btn btn-small" id="exportBtn">导出历史</button>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="analysisTab">
+                <div id="analysisBox" class="muted">无分析数据，请先保存一些历史记录</div>
+            </div>
+            
+            <div class="tab-content" id="helpTab">
+                <div class="highlight">
+                    <strong>使用说明：</strong>
+                    <ol style="padding-left: 20px; margin-top: 10px;">
+                        <li>点击右下角浮标按钮上传QQ红包截图，确保图片清晰</li>
+                        <li>调整裁切区域，确保只包含右侧金额列</li>
+                        <li>点击"识别并统计尾数"进行OCR识别</li>
+                        <li>检查识别结果，可手动编辑金额</li>
+                        <li>点击"分析推荐金额"进行手气预测</li>
+                        <li>使用"一键清除历史记录"清空所有数据</li>
+                    </ol>
+                </div>
+                
+                <p><strong>增强功能：</strong></p>
+                <ul>
+                    <li>机器学习模型：使用神经网络分析尾数模式</li>
+                    <li>集成评分算法：结合频率、时间序列和马尔科夫模型</li>
+                    <li>双倍均值法：使用经典的红包分配算法进行预测</li>
+                    <li>增强识别模式：使用多轮OCR识别提高准确率</li>
+                    <li>金额验证：自动检测异常金额并提供修正建议</li>
+                    <li>数据分析：分析历史数据中的尾数分布规律</li>
+                </ul>
+                
+                <p><strong>注意：</strong>本工具完全在浏览器中运行，不会上传您的图片到任何服务器，保护您的隐私。</p>
+                <p><strong>预测原理：</strong>使用改进的蒙特卡洛模拟和机器学习算法，预测在不同总额下各尾数出现的概率。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 上传模态框 -->
+    <div class="upload-modal" id="uploadModal">
+        <div class="upload-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button class="tab-button active" onclick="switchTab('uploadTab', this)">上传截图</button>
+                    <button class="tab-button" onclick="switchTab('manualTab', this)">手动输入</button>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn" onclick="closeUploadModal()">关闭</button>
+                </div>
+            </div>
+
+            <div id="uploadTab" class="tab active" style="margin-top:12px;">
+                <p class="muted">请上传 QQ 手气红包"领取完毕"的截图。上传后自动识别、保存并跳转到预测界面。</p>
+                
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📁</div>
+                    <p>点击或拖拽上传QQ红包截图</p>
+                    <p class="muted">建议使用清晰截图以提高识别准确率</p>
+                    <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                </div>
+                
+                <div class="auto-mode">
+                    <input type="checkbox" id="autoSave" checked>
+                    <label for="autoSave">自动保存识别结果并分析推荐</label>
+                </div>
+                
+                <div id="uploadStatus" class="status-bar" style="display:none;"></div>
+                
+                <div class="preview-container" id="previewContainer" style="display: none;">
+                    <canvas id="previewCanvas"></canvas>
+                    <div class="slider-container">
+                        <div class="slider-label">
+                            <span>裁切区域调整</span>
+                            <span id="cropHint">确保只包含右侧金额列</span>
+                        </div>
+                        <div class="slider-controls">
+                            <div>
+                                <label>左: <span id="cropLeftVal">70</span>%</label>
+                                <input type="range" id="cropLeft" min="50" max="90" value="70">
+                            </div>
+                            <div>
+                                <label>宽: <span id="cropWidthVal">25</span>%</label>
+                                <input type="range" id="cropWidth" min="10" max="40" value="25">
+                            </div>
+                            <div>
+                                <label>上: <span id="cropTopVal">15</span>%</label>
+                                <input type="range" id="cropTop" min="0" max="40" value="15">
+                            </div>
+                            <div>
+                                <label>高: <span id="cropHeightVal">80</span>%</label>
+                                <input type="range" id="cropHeight" min="50" max="100" value="80">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="controls">
+                        <button class="btn" id="autoCropBtn">自动裁切右侧列</button>
+                        <button class="btn btn-secondary" id="enhancedOCRBtn">增强识别模式</button>
+                        <button class="btn" id="doOCRBtn">识别并统计尾数</button>
+                    </div>
+                    
+                    <div class="progress-bar">
+                        <div class="progress" id="ocrProgress"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="manualTab" class="tab" style="display:none; margin-top:12px;">
+                <p class="muted">手动输入红包数据（如果 OCR 识别失败）</p>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+                    <label>总金额: <input id="manualTotal" type="number" step="0.01"></label>
+                    <label>个数: <input id="manualCount" type="number"></label>
+                    <button class="btn" onclick="loadManualInputs()">生成输入框</button>
+                    <button class="btn" onclick="saveManual()">保存并预测</button>
+                </div>
+                <div id="manualInputs" class="manual-inputs"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局函数
+        function openUploadModal() {
+            document.getElementById('uploadModal').style.display = 'flex';
+        }
+        
+        function closeUploadModal() {
+            document.getElementById('uploadModal').style.display = 'none';
+        }
+        
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab').forEach(t => t.style.display = 'none');
+            document.getElementById(tabId).style.display = 'block';
+            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+        
+        function loadManualInputs() {
+            let count = parseInt(document.getElementById('manualCount').value);
+            if (isNaN(count) || count <= 0) {
+                alert('请输入有效的红包个数');
+                return;
+            }
+            
+            let div = document.getElementById('manualInputs');
+            div.innerHTML = "";
+            for (let i = 0; i < count; i++) {
+                div.innerHTML += `
+                    <div class="manual-input-row">
+                        <label>金额${i+1}:</label>
+                        <input type="number" step="0.01" placeholder="输入金额">
+                    </div>
+                `;
+            }
+        }
+        
+        function saveManual() {
+            const inputs = document.querySelectorAll('#manualInputs input');
+            let amounts = [];
+            inputs.forEach(inp => {
+                if (inp.value) {
+                    amounts.push({ value: parseFloat(inp.value) });
+                }
+            });
+            
+            if (amounts.length > 0) {
+                recognizedAmounts = amounts;
+                computeAndShowTails();
+                
+                if (confirm('是否保存这些数据并关闭窗口？')) {
+                    saveToHistory(true);
+                    closeUploadModal();
+                    renderCurrentData();
+                }
+            } else {
+                alert('请输入至少一个金额');
+            }
+        }
+
+        // 机器学习模型相关功能
+        class TailPredictionModel {
+            constructor() {
+                this.model = null;
+                this.isTrained = false;
+                this.trainingHistory = null;
+            }
+            
+            // 创建神经网络模型
+            createModel() {
+                const model = tf.sequential();
+                
+                // 输入层：10个特征（每个尾数的频率）
+                model.add(tf.layers.dense({
+                    units: 32,
+                    activation: 'relu',
+                    inputShape: [10]
+                }));
+                
+                // 隐藏层
+                model.add(tf.layers.dense({
+                    units: 16,
+                    activation: 'relu'
+                }));
+                
+                // 输出层：10个节点（每个尾数的概率）
+                model.add(tf.layers.dense({
+                    units: 10,
+                    activation: 'softmax'
+                }));
+                
+                // 编译模型
+                model.compile({
+                    optimizer: 'adam',
+                    loss: 'categoricalCrossentropy',
+                    metrics: ['accuracy']
+                });
+                
+                this.model = model;
+                return model;
+            }
+            
+            // 准备训练数据
+            prepareTrainingData(history) {
+                if (history.length < 2) {
+                    return null; // 数据不足
+                }
+                
+                const features = [];
+                const labels = [];
+                
+                // 使用滑动窗口方法创建训练数据
+                for (let i = 0; i < history.length - 1; i++) {
+                    // 计算当前记录的尾数频率
+                    const freq = new Array(10).fill(0);
+                    history[i].tails.forEach(tail => {
+                        freq[tail]++;
+                    });
+                    
+                    // 归一化频率
+                    const totalTails = history[i].tails.length;
+                    const normalizedFreq = freq.map(count => count / totalTails);
+                    
+                    // 使用下一个记录的尾数作为标签
+                    const nextRecord = history[i + 1];
+                    const nextFreq = new Array(10).fill(0);
+                    nextRecord.tails.forEach(tail => {
+                        nextFreq[tail]++;
+                    });
+                    
+                    // 找到下一个记录中最常见的尾数
+                    let maxFreq = 0;
+                    let mostCommonTail = 0;
+                    for (let j = 0; j < 10; j++) {
+                        if (nextFreq[j] > maxFreq) {
+                            maxFreq = nextFreq[j];
+                            mostCommonTail = j;
+                        }
+                    }
+                    
+                    // 创建one-hot编码的标签
+                    const label = new Array(10).fill(0);
+                    label[mostCommonTail] = 1;
+                    
+                    features.push(normalizedFreq);
+                    labels.push(label);
+                }
+                
+                // 转换为TensorFlow张量
+                return {
+                    features: tf.tensor2d(features),
+                    labels: tf.tensor2d(labels)
+                };
+            }
+            
+            // 训练模型
+            async train(history, epochs = 50) {
+                if (!this.model) {
+                    this.createModel();
+                }
+                
+                const trainingData = this.prepareTrainingData(history);
+                if (!trainingData) {
+                    throw new Error('数据不足，无法训练模型');
+                }
+                
+                // 训练模型
+                this.trainingHistory = await this.model.fit(
+                    trainingData.features,
+                    trainingData.labels,
+                    {
+                        epochs: epochs,
+                        batchSize: Math.min(32, trainingData.features.shape[0]),
+                        validationSplit: 0.2,
+                        callbacks: {
+                            onEpochEnd: (epoch, logs) => {
+                                // 每10个epoch更新一次状态
+                                if (epoch % 10 === 0) {
+                                    const accuracy = logs.acc ? (logs.acc * 100).toFixed(2) : 'N/A';
+                                    updateModelStatus(`训练中... 周期 ${epoch}/${epochs}, 准确率: ${accuracy}%`, false, epoch/epochs);
+                                }
+                            }
+                        }
+                    }
+                );
+                
+                // 清理内存
+                trainingData.features.dispose();
+                trainingData.labels.dispose();
+                
+                this.isTrained = true;
+                return this.trainingHistory;
+            }
+            
+            // 使用模型进行预测
+            predict(features) {
+                if (!this.isTrained || !this.model) {
+                    throw new Error('模型未训练');
+                }
+                
+                const input = tf.tensor2d([features]);
+                const prediction = this.model.predict(input);
+                const result = prediction.dataSync();
+                
+                // 清理内存
+                input.dispose();
+                prediction.dispose();
+                
+                return Array.from(result);
+            }
+            
+            // 使用历史数据预测下一个尾数
+            predictNextTails(history, numTails = 4) {
+                if (history.length === 0) {
+                    // 没有历史数据时，返回随机尾数
+                    return Array.from({length: numTails}, (_, i) => 
+                        Math.floor(Math.random() * 10)
+                    ).filter((v, i, a) => a.indexOf(v) === i).slice(0, numTails);
+                }
+                
+                // 计算最近记录的尾数频率
+                const lastRecord = history[history.length - 1];
+                const freq = new Array(10).fill(0);
+                lastRecord.tails.forEach(tail => {
+                    freq[tail]++;
+                });
+                
+                // 归一化频率
+                const total = lastRecord.tails.length;
+                const normalizedFreq = freq.map(count => count / total);
+                
+                // 使用模型预测
+                const probabilities = this.predict(normalizedFreq);
+                
+                // 选择概率最高的尾数
+                const tailProbs = probabilities.map((prob, tail) => ({ tail, prob }));
+                tailProbs.sort((a, b) => b.prob - a.prob);
+                
+                return tailProbs.slice(0, numTails).map(item => item.tail);
+            }
+        }
+
+        // 初始化机器学习模型
+        const mlModel = new TailPredictionModel();
+
+        // 更准确的红包尾数预测算法
+        function predictNextTails(history, options = {}) {
+            const {
+                mode = 'advanced',
+                includeUnseen = false,
+                numTails = 4,
+                timeDecay = true,
+                useMarkov = true
+            } = options;
+
+            if (history.length === 0) {
+                // 没有历史数据时，返回随机但避免重复的尾数
+                return Array.from({length: numTails}, (_, i) => 
+                    Math.floor(Math.random() * 10)
+                ).filter((v, i, a) => a.indexOf(v) === i).slice(0, numTails);
+            }
+
+            // 1. 基础频率分析
+            const frequencyScores = new Array(10).fill(0);
+            let totalOccurrences = 0;
+
+            // 2. 时间衰减加权频率（最近的数据更重要）
+            history.forEach((record, index) => {
+                const timeWeight = timeDecay ? Math.exp(-0.1 * (history.length - 1 - index)) : 1;
+                record.tails.forEach(tail => {
+                    frequencyScores[tail] += timeWeight;
+                    totalOccurrences += timeWeight;
+                });
+            });
+
+            // 3. 马尔可夫链分析（尾数序列模式）
+            const markovScores = new Array(10).fill(0);
+            if (useMarkov && history.length > 1) {
+                // 构建转移概率矩阵
+                const transitionMatrix = Array(10).fill().map(() => new Array(10).fill(0));
+                
+                for (let i = 1; i < history.length; i++) {
+                    const prevTails = history[i-1].tails;
+                    const currentTails = history[i].tails;
+                    
+                    // 前一序列的尾数到当前序列尾数的转移
+                    prevTails.forEach(prev => {
+                        currentTails.forEach(current => {
+                            transitionMatrix[prev][current]++;
+                        });
+                    });
+                }
+
+                // 使用最近序列预测
+                const lastTails = history[history.length-1].tails;
+                lastTails.forEach(last => {
+                    for (let next = 0; next < 10; next++) {
+                        markovScores[next] += transitionMatrix[last][next];
+                    }
+                });
+            }
+
+            // 4. 间隔分析（避免近期重复出现的尾数）
+            const recencyPenalty = new Array(10).fill(0);
+            const recentTails = new Set();
+            
+            // 收集最近出现的尾数
+            for (let i = Math.max(0, history.length - 3); i < history.length; i++) {
+                history[i].tails.forEach(tail => recentTails.add(tail));
+            }
+            
+            recentTails.forEach(tail => {
+                recencyPenalty[tail] = -5; // 近期出现的尾数扣分
+            });
+
+            // 5. 组合评分
+            const finalScores = frequencyScores.map((freq, tail) => {
+                let score = 0;
+                
+                switch(mode) {
+                    case 'frequency':
+                        score = freq;
+                        break;
+                    case 'markov':
+                        score = markovScores[tail];
+                        break;
+                    case 'advanced':
+                    default:
+                        // 综合评分：频率 + 马尔可夫 + 避免近期重复
+                        const freqWeight = 0.6;
+                        const markovWeight = 0.3;
+                        const penaltyWeight = 0.1;
+                        
+                        score = (freq * freqWeight) + 
+                               (markovScores[tail] * markovWeight) + 
+                               (recencyPenalty[tail] * penaltyWeight);
+                        break;
+                }
+
+                // 如果包含未出现的尾数，给从未出现过的尾数加分
+                if (includeUnseen && freq === 0) {
+                    score += 2;
+                }
+
+                return { tail, score };
+            });
+
+            // 6. 排序并选择前N个尾数
+            finalScores.sort((a, b) => b.score - a.score);
+            
+            let selectedTails = finalScores.slice(0, numTails).map(item => item.tail);
+            
+            // 确保不重复
+            selectedTails = [...new Set(selectedTails)].slice(0, numTails);
+            
+            // 如果选择的尾数不足，补充随机尾数
+            while (selectedTails.length < numTails) {
+                const randomTail = Math.floor(Math.random() * 10);
+                if (!selectedTails.includes(randomTail)) {
+                    selectedTails.push(randomTail);
+                }
+            }
+
+            return selectedTails;
+        }
+
+        // 改进的红包分配模拟算法
+        function simulateHongbaoDistribution(totalYuan, numPackets, algorithm = 'improvedDoubleMean', simulations = 5000) {
+            const tailDistribution = new Array(10).fill(0);
+            const totalCents = Math.round(totalYuan * 100);
+            
+            for (let sim = 0; sim < simulations; sim++) {
+                let amounts;
+                
+                switch(algorithm) {
+                    case 'segmentRandom':
+                        amounts = segmentRandomSplit(totalCents, numPackets);
+                        break;
+                    case 'normalDistribution':
+                        amounts = normalDistributionSplit(totalCents, numPackets);
+                        break;
+                    case 'improvedDoubleMean':
+                    default:
+                        amounts = improvedDoubleMeanSplit(totalCents, numPackets);
+                }
+                
+                // 统计尾数
+                amounts.forEach(amount => {
+                    const tail = amount % 10;
+                    tailDistribution[tail]++;
+                });
+            }
+            
+            return tailDistribution;
+        }
+
+        // 改进的双倍均值法（避免极端值）
+        function improvedDoubleMeanSplit(totalCents, numPackets) {
+            const amounts = [];
+            let remaining = totalCents;
+            const minAmount = 1; // 最小1分钱
+            const maxAmount = Math.floor(totalCents * 0.6); // 最大不超过总额的60%
+            
+            for (let i = 0; i < numPackets - 1; i++) {
+                const average = remaining / (numPackets - i);
+                // 使用更合理的随机范围
+                const max = Math.min(maxAmount, Math.floor(average * 2.5));
+                const min = Math.max(minAmount, Math.floor(average * 0.4));
+                
+                let amount;
+                if (min >= max) {
+                    amount = min;
+                } else {
+                    amount = Math.floor(Math.random() * (max - min + 1)) + min;
+                }
+                
+                amounts.push(amount);
+                remaining -= amount;
+                
+                // 确保剩余金额足够分配
+                if (remaining < minAmount * (numPackets - i - 1)) {
+                    // 调整当前金额
+                    const needed = minAmount * (numPackets - i - 1);
+                    amount = remaining - needed;
+                    amounts[amounts.length - 1] = amount > 0 ? amount : minAmount;
+                    remaining = needed;
+                }
+            }
+            
+            amounts.push(Math.max(minAmount, remaining));
+            return amounts;
+        }
+
+        // 分段随机法
+        function segmentRandomSplit(totalCents, numPackets) {
+            const segments = [];
+            const segmentSize = Math.floor(totalCents / numPackets);
+            
+            for (let i = 0; i < numPackets; i++) {
+                const base = segmentSize;
+                const variation = Math.floor(segmentSize * 0.3); // 30%的浮动
+                const amount = base + Math.floor(Math.random() * (variation * 2 + 1)) - variation;
+                segments.push(Math.max(1, amount));
+            }
+            
+            // 调整总额
+            const currentTotal = segments.reduce((sum, amount) => sum + amount, 0);
+            const difference = totalCents - currentTotal;
+            
+            if (difference !== 0) {
+                // 平均调整差额
+                const adjustment = Math.floor(difference / numPackets);
+                const remainder = difference % numPackets;
+                
+                for (let i = 0; i < numPackets; i++) {
+                    segments[i] += adjustment;
+                    if (i < remainder) segments[i]++;
+                    segments[i] = Math.max(1, segments[i]);
+                }
+            }
+            
+            return segments;
+        }
+
+        // 正态分布法
+        function normalDistributionSplit(totalCents, numPackets) {
+            const amounts = [];
+            const mean = totalCents / numPackets;
+            const stdDev = mean * 0.4; // 标准差为均值的40%
+            
+            let remaining = totalCents;
+            let attempts = 0;
+            
+            while (amounts.length < numPackets - 1 && attempts < 1000) {
+                attempts++;
+                
+                // 使用截断正态分布
+                let amount;
+                do {
+                    amount = Math.floor(gaussianRandom(mean, stdDev));
+                } while (amount < 1 || amount > remaining - (numPackets - amounts.length - 1));
+                
+                // 检查剩余金额是否足够
+                if (amount <= remaining - (numPackets - amounts.length - 1)) {
+                    amounts.push(amount);
+                    remaining -= amount;
+                }
+            }
+            
+            amounts.push(remaining);
+            return amounts;
+        }
+
+        // 高斯随机数生成
+        function gaussianRandom(mean = 0, stdDev = 1) {
+            let u = 0, v = 0;
+            while(u === 0) u = Math.random();
+            while(v === 0) v = Math.random();
+            
+            const normal = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            return mean + stdDev * normal;
+        }
+
+        // 更新预测函数调用
+        function predictNext(history, mode = "ensemble", includeUnseen = false, numTails = 4) {
+            if (mode === 'ml' && mlModel.isTrained) {
+                try {
+                    return mlModel.predictNextTails(history, numTails);
+                } catch (e) {
+                    console.error('机器学习预测失败:', e);
+                    // 回退到集成算法
+                    return predictNextTails(history, {
+                        mode: 'advanced',
+                        includeUnseen,
+                        numTails,
+                        timeDecay: true,
+                        useMarkov: true
+                    });
+                }
+            } else {
+                return predictNextTails(history, {
+                    mode: mode === 'frequency' ? 'frequency' : 
+                          mode === 'markov' ? 'markov' : 'advanced',
+                    includeUnseen,
+                    numTails,
+                    timeDecay: true,
+                    useMarkov: true
+                });
+            }
+        }
+
+        // 计算尾数多样性
+        function calculateDiversity(tails) {
+            // 检查尾数是否分布均匀（不是连续数字）
+            let diversity = 1;
+            const sorted = [...tails].sort((a, b) => a - b);
+            
+            for (let i = 1; i < sorted.length; i++) {
+                if (sorted[i] - sorted[i-1] === 1) {
+                    diversity -= 0.2; // 连续数字扣分
+                }
+            }
+            
+            return Math.max(0, diversity);
+        }
+
+        // 获取算法名称
+        function getAlgorithmName(algo) {
+            const names = {
+                'improvedDoubleMean': '改进双倍均值法',
+                'segmentRandom': '分段随机法', 
+                'normalDistribution': '正态分布法'
+            };
+            return names[algo] || algo;
+        }
+
+        // 更新模型状态显示 - 修复了旋转问题
+        function updateModelStatus(message, isReady = false, progress = 0) {
+            const statusElement = document.getElementById('modelStatus');
+            const statusText = document.getElementById('statusText');
+            const batteryLevel = document.getElementById('batteryLevel');
+            const neuralNodes = document.querySelectorAll('.neural-node');
+            const trainingComplete = document.getElementById('trainingComplete');
+            
+            statusText.textContent = message;
+            
+            // 更新电池电量 - 只对电池应用动画，不旋转整个容器
+            if (isReady) {
+                batteryLevel.style.width = '100%';
+                batteryLevel.classList.remove('charging');
+                statusElement.style.background = '#e8f5e9';
+                statusElement.style.borderLeftColor = '#4caf50';
+                neuralNodes.forEach(node => node.classList.add('active'));
+                trainingComplete.style.display = 'inline-block';
+            } else if (progress > 0) {
+                batteryLevel.style.width = `${progress * 100}%`;
+                batteryLevel.classList.add('charging');
+                statusElement.style.background = '#fff8e1';
+                statusElement.style.borderLeftColor = '#ffb300';
+                trainingComplete.style.display = 'none';
+                
+                // 激活神经网络节点
+                neuralNodes.forEach((node, index) => {
+                    if (index < Math.floor(progress * neuralNodes.length)) {
+                        node.classList.add('active');
+                    } else {
+                        node.classList.remove('active');
+                    }
+                });
+            } else {
+                batteryLevel.style.width = '0%';
+                batteryLevel.classList.remove('charging');
+                statusElement.style.background = '#f0f7ff';
+                statusElement.style.borderLeftColor = '#3498db';
+                neuralNodes.forEach(node => node.classList.remove('active'));
+                trainingComplete.style.display = 'none';
+            }
+        }
+
+        // 训练机器学习模型 - 修复了旋转问题
+        async function trainMLModel() {
+            const history = loadHistory();
+            
+            if (history.length < 2) {
+                updateModelStatus('数据不足，需要至少2条历史记录才能训练模型');
+                return;
+            }
+            
+            try {
+                updateModelStatus('正在训练机器学习模型，请稍候...', false, 0.1);
+                
+                // 使用进度模拟，避免整个容器旋转
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += 2;
+                    updateModelStatus(`训练中... ${progress}%`, false, progress/100);
+                    
+                    if (progress >= 100) {
+                        clearInterval(progressInterval);
+                    }
+                }, 100);
+                
+                // 实际训练
+                await mlModel.train(history, 50);
+                
+                clearInterval(progressInterval);
+                updateModelStatus('模型训练完成，已准备好进行预测', true);
+            } catch (error) {
+                console.error('模型训练失败:', error);
+                updateModelStatus('模型训练失败: ' + error.message);
+            }
+        }
+
+        // 全局变量
+        let recognizedAmounts = [];
+        const STORAGE_KEY = 'hongbao_tail_history_v7';
+        let chartInstance = null;
+        let ocrTimeout = null;
+
+        // 加载历史记录
+        function loadHistory() {
+            try {
+                const historyJSON = localStorage.getItem(STORAGE_KEY);
+                if (historyJSON) {
+                    return JSON.parse(historyJSON);
+                }
+            } catch (e) {
+                console.error('Error loading history:', e);
+            }
+            
+            return [];
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM元素
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            const previewContainer = document.getElementById('previewContainer');
+            const previewCanvas = document.getElementById('previewCanvas');
+            const ctx = previewCanvas.getContext('2d');
+            const cropLeft = document.getElementById('cropLeft');
+            const cropWidth = document.getElementById('cropWidth');
+            const cropTop = document.getElementById('cropTop');
+            const cropHeight = document.getElementById('cropHeight');
+            const cropLeftVal = document.getElementById('cropLeftVal');
+            const cropWidthVal = document.getElementById('cropWidthVal');
+            const cropTopVal = document.getElementById('cropTopVal');
+            const cropHeightVal = document.getElementById('cropHeightVal');
+            const autoCropBtn = document.getElementById('autoCropBtn');
+            const doOCRBtn = document.getElementById('doOCRBtn');
+            const enhancedOCRBtn = document.getElementById('enhancedOCRBtn');
+            const tailsBox = document.getElementById('tailsBox');
+            const predictBtn = document.getElementById('predictBtn');
+            const predictionBox = document.getElementById('predictionBox');
+            const historyBox = document.getElementById('historyBox');
+            const analysisBox = document.getElementById('analysisBox');
+            const exportBtn = document.getElementById('exportBtn');
+            const clearAllBtn = document.getElementById('clearAllBtn');
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            const statusBar = document.getElementById('uploadStatus');
+            const autoSaveCheckbox = document.getElementById('autoSave');
+            const ocrProgress = document.getElementById('ocrProgress');
+            const currentData = document.getElementById('currentData');
+            const predictionResult = document.getElementById('predictionResult');
+            const tailDistributionChart = document.getElementById('tailDistributionChart');
+            const includeUnseen = document.getElementById('includeUnseen');
+            const predictMode = document.getElementById('predictMode');
+            const uploadFloatBtn = document.getElementById('uploadFloatBtn');
+            const trainModelBtn = document.getElementById('trainModelBtn');
+            const retrainModelBtn = document.getElementById('retrainModelBtn');
+            const modelInfoBtn = document.getElementById('modelInfoBtn');
+            
+            // 状态变量
+            let img = null;
+            
+            // 初始化
+            init();
+            
+            function init() {
+                // 事件监听
+                uploadFloatBtn.addEventListener('click', openUploadModal);
+                uploadArea.addEventListener('click', () => fileInput.click());
+                fileInput.addEventListener('change', handleFileSelect);
+                
+                // 裁切控制
+                [cropLeft, cropWidth, cropTop, cropHeight].forEach(slider => {
+                    slider.addEventListener('input', updateCropValues);
+                });
+                
+                autoCropBtn.addEventListener('click', setDefaultCrop);
+                doOCRBtn.addEventListener('click', doOCR);
+                enhancedOCRBtn.addEventListener('click', doEnhancedOCR);
+                predictBtn.addEventListener('click', onPredict);
+                exportBtn.addEventListener('click', exportHistory);
+                clearAllBtn.addEventListener('click', clearAllHistory);
+                
+                // 机器学习模型控制
+                trainModelBtn.addEventListener('click', trainMLModel);
+                retrainModelBtn.addEventListener('click', trainMLModel);
+                modelInfoBtn.addEventListener('click', showModelInfo);
+                
+                // 标签切换
+                tabs.forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        const tabId = tab.getAttribute('data-tab');
+                        
+                        tabs.forEach(t => t.classList.remove('active'));
+                        tabContents.forEach(tc => tc.classList.remove('active'));
+                        
+                        tab.classList.add('active');
+                        const tabContent = document.getElementById(tabId + 'Tab');
+                        if (tabContent) {
+                            tabContent.classList.add('active');
+                        }
+                        
+                        if (tabId === 'analysis') {
+                            renderAnalysis();
+                        }
+                    });
+                });
+                
+                // 预测设置变化
+                includeUnseen.addEventListener('change', renderCurrentData);
+                predictMode.addEventListener('change', renderCurrentData);
+                
+                // 配置变化
+                document.getElementById('numTails').addEventListener('change', renderCurrentData);
+                document.getElementById('simAlgorithm').addEventListener('change', renderCurrentData);
+                
+                // 加载历史记录
+                loadHistory();
+                
+                // 设置默认裁切值
+                setDefaultCrop();
+                
+                // 显示状态栏
+                statusBar.style.display = 'block';
+                updateStatus('等待上传图片');
+                
+                // 初始化机器学习模型
+                initializeMLModel();
+                
+                // 渲染当前数据
+                renderCurrentData();
+            }
+            
+            // 初始化机器学习模型
+            function initializeMLModel() {
+                updateModelStatus('正在初始化机器学习模型...');
+                
+                // 创建模型但不立即训练
+                try {
+                    mlModel.createModel();
+                    updateModelStatus('模型初始化完成，等待训练数据');
+                } catch (error) {
+                    console.error('模型初始化失败:', error);
+                    updateModelStatus('模型初始化失败: ' + error.message);
+                }
+            }
+            
+            // 显示模型信息
+            function showModelInfo() {
+                const history = loadHistory();
+                let info = `<p>模型状态: ${mlModel.isTrained ? '已训练' : '未训练'}</p>`;
+                info += `<p>历史记录数: ${history.length}</p>`;
+                
+                if (mlModel.isTrained && mlModel.trainingHistory) {
+                    const lastEpoch = mlModel.trainingHistory.epoch.length - 1;
+                    const lastLogs = mlModel.trainingHistory.history;
+                    info += `<p>训练周期: ${lastEpoch + 1}</p>`;
+                    info += `<p>最终准确率: ${lastLogs.acc ? (lastLogs.acc[lastEpoch] * 100).toFixed(2) + '%' : 'N/A'}</p>`;
+                    info += `<p>最终损失: ${lastLogs.loss ? lastLogs.loss[lastEpoch].toFixed(4) : 'N/A'}</p>`;
+                }
+                
+                alert(info);
+            }
+            
+            function updateStatus(message) {
+                statusBar.textContent = `状态: ${message}`;
+            }
+            
+            function updateProgress(progress) {
+                const percent = progress * 100;
+                ocrProgress.style.width = `${percent}%`;
+            }
+            
+            function handleFileSelect(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                if (!file.type.match('image.*')) {
+                    alert('请选择图片文件');
+                    return;
+                }
+                
+                updateStatus('加载图片中...');
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    loadImage(e.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
+            
+            function loadImage(dataUrl) {
+                img = new Image();
+                img.onload = function() {
+                    // 调整Canvas大小
+                    const maxWidth = Math.min(window.innerWidth * 0.9, 800);
+                    const ratio = maxWidth / img.width;
+                    previewCanvas.width = maxWidth;
+                    previewCanvas.height = img.height * ratio;
+                    
+                    // 绘制图像
+                    ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+                    ctx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
+                    
+                    // 显示预览区域
+                    previewContainer.style.display = 'block';
+                    
+                    // 绘制裁切覆盖层
+                    drawCropOverlay();
+                    
+                    updateStatus('图片加载完成，准备识别');
+                    
+                    // 如果开启了自动模式，直接开始OCR识别
+                    if (autoSaveCheckbox.checked) {
+                        setTimeout(doOCR, 500);
+                    }
+                };
+                img.src = dataUrl;
+            }
+            
+            function updateCropValues() {
+                cropLeftVal.textContent = cropLeft.value;
+                cropWidthVal.textContent = cropWidth.value;
+                cropTopVal.textContent = cropTop.value;
+                cropHeightVal.textContent = cropHeight.value;
+                
+                if (img) {
+                    drawCropOverlay();
+                }
+            }
+            
+            function setDefaultCrop() {
+                // 设置适合QQ红包的默认裁切值
+                cropLeft.value = 70;
+                cropWidth.value = 25;
+                cropTop.value = 15;
+                cropHeight.value = 80;
+                
+                updateCropValues();
+            }
+            
+            function drawCropOverlay() {
+                if (!img) return;
+                
+                // 清除并重绘图像
+                ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+                ctx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
+                
+                // 计算裁切区域
+                const leftP = parseInt(cropLeft.value) / 100;
+                const widthP = parseInt(cropWidth.value) / 100;
+                const topP = parseInt(cropTop.value) / 100;
+                const heightP = parseInt(cropHeight.value) / 100;
+                
+                const x = previewCanvas.width * leftP;
+                const y = previewCanvas.height * topP;
+                const w = previewCanvas.width * widthP;
+                const h = previewCanvas.height * heightP;
+                
+                // 绘制半透明覆盖层
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+                
+                // 清除裁切区域
+                ctx.clearRect(x, y, w, h);
+                
+                // 绘制裁切区域边框
+                ctx.strokeStyle = '#e54d42';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, w, h);
+            }
+            
+            function getCroppedImage() {
+                if (!img) return null;
+                
+                const leftP = parseInt(cropLeft.value) / 100;
+                const widthP = parseInt(cropWidth.value) / 100;
+                const topP = parseInt(cropTop.value) / 100;
+                const heightP = parseInt(cropHeight.value) / 100;
+                
+                const sx = img.width * leftP;
+                const sy = img.height * topP;
+                const sw = img.width * widthP;
+                const sh = img.height * heightP;
+                
+                // 创建临时Canvas进行裁切
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = sw;
+                tempCanvas.height = sh;
+                const tempCtx = tempCanvas.getContext('2d');
+                
+                tempCtx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+                
+                return tempCanvas.toDataURL('image/jpeg');
+            }
+            
+            async function doOCR() {
+                await performOCR(false);
+            }
+            
+            async function doEnhancedOCR() {
+                await performOCR(true);
+            }
+            
+            async function performOCR(enhanced = false) {
+                if (!img) {
+                    alert('请先上传红包截图');
+                    return;
+                }
+                
+                // 清除之前的超时
+                if (ocrTimeout) {
+                    clearTimeout(ocrTimeout);
+                }
+                
+                const btn = enhanced ? enhancedOCRBtn : doOCRBtn;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="loading"></span> 识别中...';
+                updateStatus('OCR识别中，首次使用需要加载识别库，请耐心等待...');
+                ocrProgress.style.width = '0%';
+                
+                try {
+                    const imageData = getCroppedImage();
+                    
+                    // 设置超时（45秒）
+                    const timeoutPromise = new Promise((_, reject) => {
+                        ocrTimeout = setTimeout(() => {
+                            reject(new Error('OCR识别超时，请尝试手动输入或使用更清晰的图片'));
+                        }, 45000);
+                    });
+                    
+                    let text, words;
+                    
+                    if (enhanced) {
+                        // 增强模式：多次识别并取最佳结果
+                        const results = [];
+                        
+                        // 第一次识别
+                        updateProgress(0.2);
+                        const result1 = await Promise.race([
+                            Tesseract.recognize(imageData, 'eng', {
+                                logger: m => {
+                                    if (m.status === 'recognizing text') {
+                                        updateProgress(0.2 + m.progress * 0.3);
+                                    }
+                                }
+                            }),
+                            timeoutPromise
+                        ]);
+                        results.push(result1);
+                        
+                        // 调整参数后第二次识别
+                        updateProgress(0.6);
+                        const result2 = await Promise.race([
+                            Tesseract.recognize(imageData, 'eng', {
+                                tessjs_create_tsv: '1',
+                                tessjs_create_box: '1',
+                                tessjs_create_unlv: '1',
+                                logger: m => {
+                                    if (m.status === 'recognizing text') {
+                                        updateProgress(0.6 + m.progress * 0.2);
+                                    }
+                                }
+                            }),
+                            timeoutPromise
+                        ]);
+                        results.push(result2);
+                        
+                        // 选择置信度最高的结果
+                        const bestResult = results.reduce((best, current) => 
+                            current.data.confidence > best.data.confidence ? current : best
+                        );
+                        
+                        text = bestResult.data.text;
+                        words = bestResult.data.words;
+                    } else {
+                        // 普通模式 - 只使用英文识别，提高速度
+                        const result = await Promise.race([
+                            Tesseract.recognize(imageData, 'eng', {
+                                logger: m => {
+                                    if (m.status === 'recognizing text') {
+                                        updateProgress(m.progress);
+                                    } else if (m.status === 'loading tesseract core') {
+                                        updateStatus('加载OCR核心库...');
+                                    } else if (m.status === 'initializing tesseract') {
+                                        updateStatus('初始化识别引擎...');
+                                    } else if (m.status === 'loading language traineddata') {
+                                        updateStatus('加载语言模型...');
+                                    }
+                                }
+                            }),
+                            timeoutPromise
+                        ]);
+                        
+                        text = result.data.text;
+                        words = result.data.words;
+                    }
+                    
+                    // 清除超时
+                    clearTimeout(ocrTimeout);
+                    ocrTimeout = null;
+                    
+                    updateProgress(1);
+                    
+                    // 提取金额
+                    extractAmounts(text, words);
+                    
+                    // 如果开启了自动模式，自动保存并分析
+                    if (autoSaveCheckbox.checked) {
+                        updateStatus('自动保存历史记录中...');
+                        const saveSuccess = saveToHistory(true);
+                        
+                        if (saveSuccess) {
+                            updateStatus('自动分析预测中...');
+                            closeUploadModal();
+                            setTimeout(onPredict, 100);
+                        }
+                    } else {
+                        updateStatus('识别完成');
+                    }
+                    
+                } catch (error) {
+                    console.error('OCR Error:', error);
+                    
+                    // 清除超时
+                    if (ocrTimeout) {
+                        clearTimeout(ocrTimeout);
+                        ocrTimeout = null;
+                    }
+                    
+                    if (error.message.includes('超时')) {
+                        updateStatus('识别超时，请尝试手动输入');
+                        alert('识别超时，建议使用手动输入功能或上传更清晰的图片');
+                    } else {
+                        updateStatus('识别失败');
+                        alert('识别失败: ' + error.message);
+                    }
+                    
+                    // 提供备用方案
+                    updateStatus('自动识别失败，请使用手动输入功能');
+                    setTimeout(() => {
+                        switchTab('manualTab', document.querySelector('[onclick="switchTab(\'manualTab\', this)"]'));
+                    }, 2000);
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = enhanced ? '增强识别模式' : '识别并统计尾数';
+                    setTimeout(() => { ocrProgress.style.width = '0%'; }, 1000);
+                }
+            }
+            
+            function extractAmounts(text, words) {
+                // 方法1: 从识别的文本中提取金额
+                const amountRegex = /(\d+\.\d{2})元?/g;
+                const matches = [...text.matchAll(amountRegex)];
+                const amountsFromText = matches.map(m => parseFloat(m[1])).filter(a => a >= 0.01 && a < 1000);
+                
+                // 方法2: 从单词中提取数字
+                const numericWords = [];
+                const numRegex = /(\d+\.\d{2}|\d+)/;
+                
+                if (words) {
+                    words.forEach(word => {
+                        const match = word.text.match(numRegex);
+                        if (match && !word.text.includes(':') && word.confidence > 50) {
+                            const value = parseFloat(match[1]);
+                            if (!isNaN(value) && value >= 0.01 && value < 1000) {
+                                numericWords.push({
+                                    value: value,
+                                    text: word.text,
+                                    confidence: word.confidence
+                                });
+                            }
+                        }
+                    });
+                }
+                
+                // 优先使用从文本中提取的金额，如果没有则使用从单词中提取的
+                if (amountsFromText.length >= numericWords.length) {
+                    recognizedAmounts = amountsFromText.map(value => ({ value }));
+                } else {
+                    recognizedAmounts = numericWords;
+                }
+                
+                // 如果仍然没有识别到金额，尝试更宽松的匹配
+                if (recognizedAmounts.length === 0) {
+                    const fallbackMatches = text.match(/\d+\.\d{2}/g) || [];
+                    recognizedAmounts = fallbackMatches.map(value => ({ value: parseFloat(value) }))
+                        .filter(a => a.value >= 0.01 && a.value < 1000);
+                }
+                
+                if (recognizedAmounts.length === 0) {
+                    alert('未识别到任何金额，请调整裁切区域或尝试更清晰的图片');
+                    updateStatus('识别失败：未找到金额');
+                    return;
+                }
+                
+                // 计算并显示尾数
+                computeAndShowTails();
+            }
+            
+            function computeAndShowTails() {
+                if (!recognizedAmounts.length) {
+                    tailsBox.innerHTML = '无数据';
+                    return;
+                }
+                
+                // 计算尾数分布
+                const tailCount = {};
+                let totalAmount = 0;
+                
+                recognizedAmounts.forEach(amount => {
+                    totalAmount += amount.value;
+                    // 获取分的最后一位数字
+                    const cents = Math.round(amount.value * 100);
+                    const tail = cents % 10;
+                    tailCount[tail] = (tailCount[tail] || 0) + 1;
+                });
+                
+                // 显示结果
+                let html = `
+                    <p>识别到 <strong>${recognizedAmounts.length}</strong> 个红包，总计 <strong>${totalAmount.toFixed(2)}</strong> 元</p>
+                    <div style="margin-top: 10px;">
+                        <p>尾数分布:</p>
+                `;
+                
+                // 按出现次数排序
+                const sortedTails = Object.entries(tailCount)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([tail, count]) => {
+                        const percentage = (count / recognizedAmounts.length * 100).toFixed(1);
+                        return `<span class="tail-tag">${tail} (${count}次, ${percentage}%)</span>`;
+                    });
+                
+                html += sortedTails.join(' ') + '</div>';
+                tailsBox.innerHTML = html;
+            }
+            
+            // 更新分析范围函数
+            function analyzeRangeAndRecommend(nPackets, algorithm, minAmount = 5, maxAmount = 12, step = 1) {
+                const results = [];
+                const simsPerTotal = 3000;
+                
+                for (let total = minAmount; total <= maxAmount; total += step) {
+                    const simulation = simulateHongbaoDistribution(total, nPackets, algorithm, simsPerTotal);
+                    const tailProbabilities = [];
+                    
+                    for (let i = 0; i < 10; i++) {
+                        tailProbabilities.push({
+                            tail: i,
+                            probability: simulation[i] / (nPackets * simsPerTotal)
+                        });
+                    }
+                    
+                    tailProbabilities.sort((a, b) => b.probability - a.probability);
+                    
+                    const numTails = parseInt(document.getElementById('numTails').value) || 4;
+                    const topTails = tailProbabilities.slice(0, numTails);
+                    const topProbability = topTails.reduce((sum, item) => sum + item.probability, 0);
+                    
+                    // 计算多样性分数（避免推荐相似的尾数）
+                    const diversityScore = calculateDiversity(topTails.map(t => t.tail));
+                    
+                    results.push({
+                        total,
+                        topTails,
+                        topProbability,
+                        diversityScore,
+                        algorithm
+                    });
+                }
+                
+                // 按综合评分排序
+                results.sort((a, b) => {
+                    // 综合考虑概率和多样性
+                    const scoreA = a.topProbability * 0.7 + a.diversityScore * 0.3;
+                    const scoreB = b.topProbability * 0.7 + b.diversityScore * 0.3;
+                    return scoreB - scoreA;
+                });
+                
+                return results;
+            }
+            
+            function renderCurrentData() {
+                const history = loadHistory();
+                const includeUnseen = document.getElementById('includeUnseen').checked;
+                const mode = document.getElementById('predictMode').value;
+                const numTails = parseInt(document.getElementById('numTails').value) || 4;
+                const prediction = predictNext(history, mode, includeUnseen, numTails);
+
+                // 显示当前数据
+                let currentHTML = "<h4>当前数据统计:</h4>";
+                if (history.length === 0) {
+                    currentHTML += "<p>暂无历史数据</p>";
+                } else {
+                    const freq = new Array(10).fill(0);
+                    history.forEach(h => h.tails.forEach(t => freq[t]++));
+                    
+                    currentHTML += `<p>历史记录数: <strong>${history.length}</strong></p>`;
+                    currentHTML += `<p>总红包数: <strong>${history.reduce((sum, h) => sum + h.tails.length, 0)}</strong></p>`;
+                    
+                    // 显示频率最高的尾数
+                    const sortedFreq = freq.map((count, tail) => ({tail, count}))
+                        .sort((a, b) => b.count - a.count)
+                        .slice(0, 3);
+                    
+                    currentHTML += "<p>最常出现尾数: ";
+                    sortedFreq.forEach(item => {
+                        currentHTML += `<span class="tail-tag">${item.tail} (${item.count}次)</span> `;
+                    });
+                    currentHTML += "</p>";
+                }
+                
+                currentData.innerHTML = currentHTML;
+
+                // 显示预测
+                let resultHTML = `<h4>预测下一个红包尾数（推荐${numTails}个）：</h4>`;
+                prediction.forEach(n => { 
+                    resultHTML += `<div class="tail-number">${n}</div>`; 
+                });
+                
+                // 添加预测说明
+                let algorithmText = getAlgorithmName(document.getElementById('simAlgorithm').value);
+                if (mode === 'ml') {
+                    algorithmText = '机器学习模型';
+                }
+                
+                resultHTML += `<div style="margin-top: 10px; font-size: 0.9em; color: #666;">
+                    <p>使用算法: ${algorithmText}</p>
+                </div>`;
+                
+                predictionResult.innerHTML = resultHTML;
+
+                // 更新图表
+                updateChart(history);
+            }
+            
+            function updateChart(history) {
+                if (chartInstance) {
+                    chartInstance.destroy();
+                }
+                
+                const freq = new Array(10).fill(0);
+                history.forEach(h => h.tails.forEach(t => freq[t]++));
+                
+                const ctx = tailDistributionChart.getContext('2d');
+                chartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: [0,1,2,3,4,5,6,7,8,9],
+                        datasets: [{
+                            label: "出现次数",
+                            data: freq,
+                            backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+            
+            function onPredict() {
+                const minAmount = parseInt(document.getElementById('minAmount').value) || 5;
+                const maxAmount = parseInt(document.getElementById('maxAmount').value) || 12;
+                const step = parseInt(document.getElementById('amountStep').value) || 1;
+                const nPackets = parseInt(document.getElementById('packetCount').value) || 9;
+                const algorithm = document.getElementById('simAlgorithm').value;
+                
+                predictionBox.innerHTML = '<p>模拟中，请稍候...</p>';
+                
+                // 使用setTimeout让UI有机会更新
+                setTimeout(() => {
+                    const results = analyzeRangeAndRecommend(nPackets, algorithm, minAmount, maxAmount, step);
+                    renderPredictionResults(results, nPackets, algorithm);
+                }, 100);
+            }
+            
+            function renderPredictionResults(results, nPackets, algorithm) {
+                const numTails = parseInt(document.getElementById('numTails').value) || 4;
+                
+                let html = `
+                    <p>模拟参数: ${nPackets}个红包，使用${getAlgorithmName(algorithm)}</p>
+                    <p>分析范围: ${document.getElementById('minAmount').value}-${document.getElementById('maxAmount').value}元</p>
+                    <div class="prediction-result">
+                        <h3>推荐发红包金额 (按Top${numTails}尾数概率排序):</h3>
+                        <div class="prediction-grid">
+                `;
+                
+                // 显示前8个推荐
+                results.slice(0, 8).forEach(result => {
+                    const certaintyPercent = (result.topProbability * 100).toFixed(1);
+                    const diversityPercent = (result.diversityScore * 100).toFixed(0);
+                    
+                    html += `
+                        <div class="prediction-card">
+                            <h4>${result.total} 元</h4>
+                            <div>Top${numTails}尾数概率: <strong>${certaintyPercent}%</strong></div>
+                            <div>多样性评分: <strong>${diversityPercent}%</strong></div>
+                            <div class="certainty-meter">
+                                <div class="certainty-fill" style="width: ${certaintyPercent}%"></div>
+                            </div>
+                            <div>
+                                ${result.topTails.map(t => {
+                                    const probPercent = (t.probability * 100).toFixed(1);
+                                    const probClass = t.probability > 0.15 ? 'high-prob' : 
+                                                    t.probability > 0.08 ? '' : 'low-prob';
+                                    return `<span class="tail-pill ${probClass}">${t.tail} (${probPercent}%)</span>`;
+                                }).join(' ')}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div></div>`;
+                predictionBox.innerHTML = html;
+            }
+            
+            function renderHistory() {
+                const history = loadHistory();
+                historyBox.innerHTML = '';
+                
+                if (!history || history.length === 0) {
+                    historyBox.innerHTML = '<p>无历史记录</p>';
+                    return;
+                }
+                
+                // 按时间倒序显示
+                history.reverse().forEach((record, index) => {
+                    const date = new Date(record.timestamp);
+                    const item = document.createElement('div');
+                    item.className = 'amount-item';
+                    item.innerHTML = `
+                        <div>
+                            <strong>${date.toLocaleString()}</strong>
+                            <div>${record.tails.length}个红包，尾数: ${record.tails.join(', ')}</div>
+                        </div>
+                        <div>
+                            <button class="btn-small" data-load="${index}">加载</button>
+                            <button class="btn-small btn-outline" data-delete="${index}">删除</button>
+                        </div>
+                    `;
+                    
+                    historyBox.appendChild(item);
+                    
+                    // 添加事件监听
+                    item.querySelector('[data-load]').addEventListener('click', () => {
+                        recognizedAmounts = record.amounts.map(value => ({ value }));
+                        computeAndShowTails();
+                    });
+                    
+                    item.querySelector('[data-delete]').addEventListener('click', () => {
+                        deleteHistoryItem(index);
+                    });
+                });
+            }
+            
+            function renderAnalysis() {
+                const history = loadHistory();
+                
+                if (!history || history.length === 0) {
+                    analysisBox.innerHTML = '<p>无历史数据，请先保存一些识别结果</p>';
+                    return;
+                }
+                
+                // 分析所有历史数据中的尾数分布
+                const tailCount = {};
+                let totalAmounts = 0;
+                
+                history.forEach(record => {
+                    record.tails.forEach(tail => {
+                        totalAmounts++;
+                        tailCount[tail] = (tailCount[tail] || 0) + 1;
+                    });
+                });
+                
+                // 计算每个尾数的百分比
+                const tailPercentages = [];
+                for (let i = 0; i < 10; i++) {
+                    const count = tailCount[i] || 0;
+                    const percentage = (count / totalAmounts * 100).toFixed(1);
+                    tailPercentages.push({ tail: i, count, percentage });
+                }
+                
+                // 按出现次数排序
+                tailPercentages.sort((a, b) => b.count - a.count);
+                
+                let html = `
+                    <h3>历史数据尾数分析</h3>
+                    <p>基于${history.length}条记录，共${totalAmounts}个红包</p>
+                    <div class="analysis-chart" id="analysisChart">
+                `;
+                
+                // 添加图表
+                tailPercentages.forEach((item, index) => {
+                    const height = (item.count / tailPercentages[0].count) * 180;
+                    html += `<div class="chart-bar" style="left: ${index * 10}%; height: ${height}px;" title="尾数 ${item.tail}: ${item.percentage}%"></div>`;
+                });
+                
+                html += `</div><div style="margin-top: 20px;">`;
+                
+                tailPercentages.forEach(item => {
+                    html += `
+                        <div style="margin-bottom: 10px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>尾数 ${item.tail}:</span>
+                                <span>${item.count}次 (${item.percentage}%)</span>
+                            </div>
+                            <div class="confidence-bar">
+                                <div class="confidence-level" style="width: ${item.percentage}%"></div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+                analysisBox.innerHTML = html;
+            }
+            
+            function saveToHistory(silent = false) {
+                if (!recognizedAmounts.length) {
+                    if (!silent) {
+                        alert('没有可保存的数据');
+                    }
+                    return false;
+                }
+                
+                try {
+                    const history = loadHistory();
+                    const tails = recognizedAmounts.map(amount => {
+                        const cents = Math.round(amount.value * 100);
+                        return cents % 10;
+                    });
+                    
+                    history.push({
+                        timestamp: Date.now(),
+                        amounts: recognizedAmounts.map(a => a.value),
+                        tails: tails
+                    });
+                    
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+                    renderHistory();
+                    renderCurrentData();
+                    
+                    // 如果有足够的数据，提示可以训练模型
+                    if (history.length >= 2 && !mlModel.isTrained) {
+                        updateModelStatus('数据充足，点击"训练模型"按钮开始训练');
+                    }
+                    
+                    if (!silent) {
+                        alert('已保存到历史记录');
+                    }
+                    
+                    return true;
+                } catch (e) {
+                    console.error('Error saving history:', e);
+                    if (!silent) {
+                        alert('保存失败');
+                    }
+                    return false;
+                }
+            }
+            
+            function deleteHistoryItem(index) {
+                try {
+                    const history = loadHistory();
+                    history.splice(index, 1);
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+                    renderHistory();
+                    renderCurrentData();
+                } catch (e) {
+                    console.error('Error deleting history item:', e);
+                }
+            }
+            
+            function exportHistory() {
+                try {
+                    const history = loadHistory();
+                    if (history.length === 0) {
+                        alert('没有历史记录可导出');
+                        return;
+                    }
+                    
+                    const dataStr = JSON.stringify(history, null, 2);
+                    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+                    
+                    const exportFileDefaultName = `qq_hongbao_history_${new Date().toISOString().slice(0,10)}.json`;
+                    
+                    const linkElement = document.createElement('a');
+                    linkElement.setAttribute('href', dataUri);
+                    linkElement.setAttribute('download', exportFileDefaultName);
+                    linkElement.click();
+                } catch (e) {
+                    console.error('Error exporting history:', e);
+                    alert('导出失败');
+                }
+            }
+            
+            function clearAllHistory() {
+                if (confirm('确定要一键清除所有历史记录吗？此操作不可撤销。')) {
+                    localStorage.removeItem(STORAGE_KEY);
+                    renderHistory();
+                    renderCurrentData();
+                    analysisBox.innerHTML = '<p>无分析数据，请先保存一些历史记录</p>';
+                    
+                    // 重置模型状态
+                    mlModel.isTrained = false;
+                    updateModelStatus('历史记录已清除，需要重新训练模型');
+                    
+                    alert('所有历史记录已清除！');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
